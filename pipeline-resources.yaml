@@ -2,27 +2,10 @@ Description: >
   This CloudFormation template deploys a full CI/CD pipeline for all project resources.
 
 Parameters:
-  ProjectID:
-    Description: A unique value to identify the project that will be used to partially name resources in this template.
-    AllowedPattern: ^[0-9a-z]+([0-9a-z-]*[0-9a-z])*$
-    ConstraintDescription: ProjectID can include numbers, lowercase letters, and hyphens (-), first character must be a letter. It cannot start or end with a hyphen(-).
-    Default: prj01
-    Type: String
-
   Email:
     Description: The email address where to send notifications
     Default: yauhen.volkau@gmail.com
     Type: String
-
-  EnvironmentType:
-    Description: The environment type
-    Type: String
-    Default: dev
-    AllowedValues:
-      - dev
-      - tst
-      - acc
-      - prd
 
   GitHubOAuthToken:
     Description: Create a token with 'repo' and 'admin:repo_hook' permissions here https://github.com/settings/tokens
@@ -48,19 +31,6 @@ Parameters:
     Type: String
     Default: master
 
-  Region:
-    Description: Type a correct region to find S3 bucket with CF child templates.
-    AllowedPattern: ^[0-9a-z]+([0-9a-z-]*[0-9a-z])*$
-    ConstraintDescription: Region name can include numbers, lowercase letters and hyphens (-). It cannot start or end with a hyphen (-).
-    Default: eu-central-1
-    Type: String
-
-Conditions:
-  CreateDevResources: !Equals [ !Ref EnvironmentType, dev ]
-  CreateTstResources: !Equals [ !Ref EnvironmentType, tst ]
-  CreateAccResources: !Equals [ !Ref EnvironmentType, acc ]
-  CreatePrdResources: !Equals [ !Ref EnvironmentType, prd ]
-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -83,19 +53,19 @@ Metadata:
         default: OAuth2 Token
 
 Resources:
-# SNS Topic
-  CodePipelineSNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      Subscription:
-        - Endpoint: !Ref Email
-          Protocol: email
+# # SNS Topic
+  # CodePipelineSNSTopic:
+    # Type: AWS::SNS::Topic
+    # Properties:
+      # Subscription:
+        # - Endpoint: !Ref Email
+          # Protocol: email
 # S3 Buckets            
   ArtifactBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Join [ '-', [ !Ref ProjectID, !Ref EnvironmentType, 'resources-artifacts'] ]
+      BucketName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'resources-artifacts'] ]
       
   CleanupArtifactBucketOnDelete:
     Type: Custom::cleanupbucket
@@ -108,7 +78,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -116,7 +86,7 @@ Resources:
           Principal:
             Service: codebuild.amazonaws.com
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Policy' ] ]
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -140,8 +110,8 @@ Resources:
   PackageCFTemplates:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join [ "-", [ !ImportValue ProjectID, !Ref EnvironmentType, "PackageCFTemplates", "Resources"] ]
-      Description: !Join [ " ", ["Build project for ", !Sub '${ProjectID}' ] ]
+      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "PackageCFTemplates", "Resources"] ]
+      Description: !Join [ " ", ["Build project for ", !ImportValue ProjectID ] ]
       ServiceRole: !Ref CodeBuildRole
       Source:
         BuildSpec: buildspec.yaml
@@ -154,7 +124,7 @@ Resources:
           - Name: ARTIFACT_S3_BUCKET
             Value: !Sub ${ArtifactBucket}
       Artifacts:
-        Name: !Ref ProjectID
+        Name: !ImportValue ProjectID
         Type: CODEPIPELINE
         
 # CodePipeline IAM Role
@@ -162,7 +132,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -170,7 +140,7 @@ Resources:
           Principal:
             Service: codepipeline.amazonaws.com
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Policy' ] ]
           PolicyDocument:
             Statement:
               - Action:
@@ -215,7 +185,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -224,7 +194,7 @@ Resources:
             Service: cloudformation.amazonaws.com
         Version: '2012-10-17'
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Policy' ] ]
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -271,194 +241,38 @@ Resources:
               OutputArtifacts:
                 - Name: Build
               Configuration:
-                ProjectName: !Ref PackageCFTemplates            
-            - !If
-              - CreateDevResources
-              - Name: CreateS3StaticHostingChangeSet
-                ActionTypeId:
-                  Category: Deploy
-                  Owner: AWS
-                  Provider: CloudFormation
-                  Version: 1
-                InputArtifacts:
-                  - Name: Source
-                  - Name: Build
-                OutputArtifacts:
-                  - Name: CreateS3StaticHostingChangeSet
-                Configuration:
-                  ActionMode: CHANGE_SET_REPLACE
-                  Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "S3StaticHosting"] ]
-                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "S3StaticHosting"] ]
-                  TemplatePath: !Sub "Build::s3-static-hosting.yaml"
-                RunOrder: 10
-              - !Ref AWS::NoValue
-            - !If
-              - CreateDevResources
-              - Name: ExecuteS3StaticHostingChangeSet
-                ActionTypeId:
-                  Category: Deploy
-                  Owner: AWS
-                  Provider: CloudFormation
-                  Version: 1
-                Configuration:
-                  ActionMode: CHANGE_SET_EXECUTE
-                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "S3StaticHosting"] ]
-                  RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "S3StaticHosting"] ]
-                RunOrder: 11
-              - !Ref AWS::NoValue
-
-    # # Pipeline - Compute
-            # - !If
-              # - CreateTstResources
-              # - Name: CreateComputeChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # InputArtifacts:
-                  # - Name: Source
-                  # - Name: Build
-                # OutputArtifacts:
-                  # - Name: CreateComputeChangeSet
-                # Configuration:
-                  # ActionMode: CHANGE_SET_REPLACE
-                  # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Compute"] ]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "compute"] ]
-                  # TemplatePath: !Sub "Source::cfn/compute.yaml"
-                  # TemplateConfiguration: !Join [ "", [ "Source::cfn/compute-", !Ref EnvironmentType, "-config.json"] ]
-                # RunOrder: 12                  
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreateTstResources
-              # - Name: ExecuteComputeChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # Configuration:
-                  # ActionMode: CHANGE_SET_EXECUTE
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Compute"] ]
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "compute"] ]
-                # RunOrder: 13
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreatePrdResources          
-              # - Name: CreateComputeChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # InputArtifacts:
-                  # - Name: Source
-                  # - Name: Build
-                # OutputArtifacts:
-                  # - Name: CreateComputeChangeSet
-                # Configuration:
-                  # ActionMode: CHANGE_SET_REPLACE
-                  # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Compute"] ]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "compute"] ]
-                  # TemplatePath: !Sub "Source::cfn/compute.yaml"
-                  # TemplateConfiguration: !Join [ "", [ "Source::cfn/compute-", !Ref EnvironmentType, "-config.json"] ]
-                # RunOrder: 12
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreatePrdResources
-              # - Name: ExecuteComputeChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # Configuration:
-                  # ActionMode: CHANGE_SET_EXECUTE
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Compute"] ]
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "compute"] ]
-                # RunOrder: 13
-              # - !Ref AWS::NoValue
-    # # Pipeline - IoT
-            # - !If
-              # - CreateTstResources
-              # - Name: CreateIotChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # InputArtifacts:
-                  # - Name: Source
-                  # - Name: Build
-                # OutputArtifacts:
-                  # - Name: CreateIotChangeSet
-                # Configuration:
-                  # ActionMode: CHANGE_SET_REPLACE
-                  # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # TemplatePath: !Sub "Build::iot.yaml"
-                # RunOrder: 20
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreateTstResources
-              # - Name: ExecuteIotChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # Configuration:
-                  # ActionMode: CHANGE_SET_EXECUTE
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                # RunOrder: 30
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreatePrdResources
-              # - Name: CreateIotChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # InputArtifacts:
-                  # - Name: Source
-                  # - Name: Build
-                # OutputArtifacts:
-                  # - Name: CreateIotChangeSet
-                # Configuration:
-                  # ActionMode: CHANGE_SET_REPLACE
-                  # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # TemplatePath: !Sub "Build::iot.yaml"
-                # RunOrder: 20
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreatePrdResources
-              # - Name: ExecuteIotChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # Configuration:
-                  # ActionMode: CHANGE_SET_EXECUTE
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
-                # RunOrder: 30
-              # - !Ref AWS::NoValue
+                ProjectName: !Ref PackageCFTemplates          
+        - Name: S3StaticHosting
+          Actions:
+            - Name: CreateS3StaticHostingChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              InputArtifacts:
+                - Name: Source
+                - Name: Build
+              OutputArtifacts:
+                - Name: CreateS3StaticHostingChangeSet
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
+                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
+                TemplatePath: !Sub "Build::s3-static-hosting.yaml"
+              RunOrder: 10
+            - Name: ExecuteS3StaticHostingChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
+                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
+              RunOrder: 11         
+          
