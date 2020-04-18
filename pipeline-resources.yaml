@@ -1,5 +1,5 @@
 Description: >
-  This CloudFormation template deploys a full CI/CD pipeline with all necessary dependencies. AWS CodeBuild, IoT, Infrastructure and Compute deployment via AWS CloudFormation.
+  This CloudFormation template deploys a full CI/CD pipeline for all project resources.
 
 Parameters:
   ProjectID:
@@ -41,7 +41,7 @@ Parameters:
   GitHubRepository:
     Description: Enter the repository name that should be monitored for changes
     Type: String
-    Default: Prj01-awsresources
+    Default: Prj01-projectresources
 
   GitHubBranch:
     Description: Enter the GitHub branch to monitored
@@ -65,10 +65,6 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: Application Configuration
-          Parameters:
-            - ProjectID
-      - Label:
           default: GitHub Configuration
           Parameters:
             - GitHubOAuthToken
@@ -77,8 +73,6 @@ Metadata:
             - GitHubBranch
 
     ParameterLabels:
-      ProjectID:
-        default: Customer ID
       GitHubRepository:
         default: Repository Name
       GitHubUser:
@@ -96,19 +90,25 @@ Resources:
       Subscription:
         - Endpoint: !Ref Email
           Protocol: email
-# S3 Buckets         
+# S3 Buckets            
   ArtifactBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Join [ '-', [ !Ref ProjectID, !Ref EnvironmentType, 'artifactstore'] ]
+      BucketName: !Join [ '-', [ !Ref ProjectID, !Ref EnvironmentType, 'resources-artifacts'] ]
+      
+  CleanupArtifactBucketOnDelete:
+    Type: Custom::cleanupbucket
+    Properties:
+      ServiceToken: !ImportValue EmptyS3OnDeleteLambdaARN
+      BucketName: !Ref ArtifactBucket            
       
 # CodeBuild IAM Role
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CodeBuild
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -116,7 +116,7 @@ Resources:
           Principal:
             Service: codebuild.amazonaws.com
       Policies:
-        - PolicyName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CodeBuild
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Policy' ] ]
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -137,11 +137,11 @@ Resources:
               - s3:PutObject            
       
 # CodeBuild Project
-  PackageSamTemplates:
+  PackageCFTemplates:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "packageSamTemplates"] ]
-      Description: !Sub Build project for ${ProjectID}
+      Name: !Join [ "-", [ !ImportValue ProjectID, !Ref EnvironmentType, "PackageCFTemplates", "Resources"] ]
+      Description: !Join [ " ", ["Build project for ", !Sub '${ProjectID}' ] ]
       ServiceRole: !Ref CodeBuildRole
       Source:
         BuildSpec: buildspec.yaml
@@ -162,7 +162,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CodePipeline
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -170,7 +170,7 @@ Resources:
           Principal:
             Service: codepipeline.amazonaws.com
       Policies:
-        - PolicyName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CodePipeline
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Policy' ] ]
           PolicyDocument:
             Statement:
               - Action:
@@ -215,7 +215,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CloudFormation
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -224,7 +224,7 @@ Resources:
             Service: cloudformation.amazonaws.com
         Version: '2012-10-17'
       Policies:
-        - PolicyName: !Sub ${ProjectID}-${EnvironmentType}-${AWS::Region}-CloudFormation
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !Ref EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Policy' ] ]
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -236,7 +236,7 @@ Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, 'autoDeploy' ] ]
+      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'projectresources' ] ]
       RoleArn: !Sub ${CodePipelineRole.Arn}
       ArtifactStore:
         Type: S3
@@ -259,7 +259,7 @@ Resources:
                 OAuthToken: !Ref GitHubOAuthToken
         - Name: CodeBuild
           Actions:
-            - Name: PackageSamTemplates
+            - Name: PackageCFTemplates
               RunOrder: 1
               InputArtifacts:
                 - Name: Source
@@ -271,61 +271,7 @@ Resources:
               OutputArtifacts:
                 - Name: Build
               Configuration:
-                ProjectName: !Ref PackageSamTemplates
-        # - Name: IaCDeploy
-          # Actions:
-            # - !If
-              # - CreatePrdResources
-              # - Name: ApproveDeployment
-                # ActionTypeId:
-                  # Category: Approval
-                  # Owner: AWS
-                  # Provider: Manual
-                  # Version: '1'
-                # Configuration:
-                  # NotificationArn: !Ref CodePipelineSNSTopic
-                  # CustomData: !Sub 'Are you sure you want to deploy all resources in PRD?'
-                # RunOrder: 1
-              # - !Ref AWS::NoValue
-    # Pipeline - Infra
-            # - !If
-              # - CreateDevResources
-              # - Name: CreateS3EmptyChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # InputArtifacts:
-                  # - Name: Source
-                  # - Name: Build
-                # OutputArtifacts:
-                  # - Name: CreateS3EmptyChangeSet
-                # Configuration:
-                  # ActionMode: CHANGE_SET_REPLACE
-                  # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Infra"] ]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "infra"] ]
-                  # TemplatePath: !Sub "Build::infra.yaml"
-                # RunOrder: 10
-              # - !Ref AWS::NoValue
-            # - !If
-              # - CreateDevResources
-              # - Name: ExecuteInfraChangeSet
-                # ActionTypeId:
-                  # Category: Deploy
-                  # Owner: AWS
-                  # Provider: CloudFormation
-                  # Version: 1
-                # Configuration:
-                  # ActionMode: CHANGE_SET_EXECUTE
-                  # ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "Infra"] ]
-                  # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "infra"] ]
-                # RunOrder: 11
-              # - !Ref AWS::NoValue
-              
+                ProjectName: !Ref PackageCFTemplates            
             - !If
               - CreateDevResources
               - Name: CreateS3StaticHostingChangeSet
@@ -516,22 +462,3 @@ Resources:
                   # StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "iot"] ]
                 # RunOrder: 30
               # - !Ref AWS::NoValue
-
-
-Outputs:
-  ArtifactBucket:
-    Value: !Ref ArtifactBucket
-    Export:
-      Name: !Sub ArtifactBucket
-  ProjectID:
-    Value: !Ref ProjectID
-    Export:
-      Name: ProjectID
-  EnvironmentType:
-    Value: !Ref EnvironmentType
-    Export:
-      Name: EnvironmentType
-  Region:
-    Value: !Ref Region
-    Export:
-      Name: Region
