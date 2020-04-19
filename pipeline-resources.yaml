@@ -242,7 +242,7 @@ Resources:
                 - Name: Build
               Configuration:
                 ProjectName: !Ref PackageCFTemplates          
-        - Name: S3StaticHosting
+        - Name: Deploy Resources
           Actions:
             - Name: CreateS3StaticHostingChangeSet
               ActionTypeId:
