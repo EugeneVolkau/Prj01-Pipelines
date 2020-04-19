@@ -244,6 +244,7 @@ Resources:
                 ProjectName: !Ref PackageCFTemplates          
         - Name: DeployResources
           Actions:
+          # S3 Static Website Bucket
             - Name: CreateS3StaticHostingChangeSet
               ActionTypeId:
                 Category: Deploy
@@ -274,5 +275,36 @@ Resources:
                 ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
                 RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
                 StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "S3StaticHosting"] ]
-              RunOrder: 11         
-          
+              RunOrder: 11
+          # AWS Cognito
+            - Name: CreateCognitoChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              InputArtifacts:
+                - Name: Source
+                - Name: Build
+              OutputArtifacts:
+                - Name: CreateCognitoChangeSet
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "cognito"] ]
+                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "cognito"] ]
+                TemplatePath: !Sub "Build::cognito.yaml"
+              RunOrder: 12
+            - Name: ExecuteCognitoChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "cognito"] ]
+                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "cognito"] ]
+              RunOrder: 13
