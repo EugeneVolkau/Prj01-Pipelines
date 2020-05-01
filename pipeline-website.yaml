@@ -30,6 +30,11 @@ Parameters:
     Description: Enter the name of the bucket where website needs to be copied to
     Type: String
     Default: proj01-dev-sapp 
+    
+  # AppArtifactBucket:
+    # Description: Enter the name of the bucket where app artifacs are stored
+    # Type: String
+    # Default: proj01-dev-appresources-artifacts     
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -95,6 +100,7 @@ Resources:
                 Resource: 
                   - !Join [ "", [ "arn:aws:s3:::", !Ref ArtifactBucket ] ]
                   - !Join [ "", [ "arn:aws:s3:::", !Ref WebsiteBucket ] ]
+                  # - !Join [ "", [ "arn:aws:s3:::", !Ref AppArtifactBucket ] ]                  
                 Effect: Allow
               - Action:
                 - s3:PutObject
@@ -103,6 +109,7 @@ Resources:
                 Resource:
                   - !Join [ "", [ "arn:aws:s3:::", !Ref WebsiteBucket, "/*"] ]               
                   - !Join [ "", [ "arn:aws:s3:::", !Ref ArtifactBucket, "/*" ] ]
+                  # - !Join [ "", [ "arn:aws:s3:::", !Ref AppArtifactBucket, "/*" ] ]                  
                 Effect: Allow
               - Action:
                 - codedeploy:CreateDeployment
@@ -129,6 +136,28 @@ Resources:
                 Resource: "*"
                 Effect: Allow
 
+# # CodePipeline-CloudFormation IAM Role
+  # CodePipelineCloudFormationRole:
+    # Type: AWS::IAM::Role
+    # Properties:
+      # Path: /
+      # RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'web', 'Role' ] ]
+      # AssumeRolePolicyDocument:
+        # Statement:
+        # - Action: sts:AssumeRole
+          # Effect: Allow
+          # Principal:
+            # Service: cloudformation.amazonaws.com
+        # Version: '2012-10-17'
+      # Policies:
+        # - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'web', 'Policy' ] ]
+          # PolicyDocument:
+            # Version: '2012-10-17'
+            # Statement:
+            # - Effect: Allow
+              # Action: "*"
+              # Resource: "*"                
+
 # CodePipeline          
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -154,6 +183,21 @@ Resources:
                 Repo: !Ref GitHubRepository
                 Branch: !Ref GitHubBranch
                 OAuthToken: !Ref GitHubOAuthToken
+        # - Name: CodeBuild
+          # Actions:
+            # - Name: PackageCFTemplates
+              # RunOrder: 1
+              # InputArtifacts:
+                # - Name: Source
+              # ActionTypeId:
+                # Category: Build
+                # Owner: AWS
+                # Version: 1
+                # Provider: CodeBuild
+              # OutputArtifacts:
+                # - Name: Build
+              # Configuration:
+                # ProjectName: !ImportValue AppCodeBuildProject                   
         - Name: Deploy
           Actions:
             - Name: WebsiteDeploy
@@ -168,3 +212,37 @@ Resources:
               Configuration:
                 BucketName: !Ref WebsiteBucket
                 Extract: true
+          # # Website integration                
+        # - Name: WebsiteIntegration
+          # Actions:                
+            # - Name: CreateWebIntegrationChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # InputArtifacts:
+                # - Name: Source
+                # - Name: Build
+              # OutputArtifacts:
+                # - Name: CreateWebIntegrationChangeSet
+              # Configuration:
+                # ActionMode: CHANGE_SET_REPLACE
+                # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # TemplatePath: !Sub "Build::websiteIntegration.yaml"
+              # RunOrder: 30
+            # - Name: ExecuteWebIntegrationChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # Configuration:
+                # ActionMode: CHANGE_SET_EXECUTE
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+              # RunOrder: 31                              
