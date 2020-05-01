@@ -96,7 +96,7 @@ Resources:
       Subscription:
         - Endpoint: !Ref Email
           Protocol: email
-# S3 Buckets (this bucket will have to be manaully emptied before deleting cloudformation stack).        
+# S3 Buckets (this bucket will have to be manaully emptied before deleting cloudformation stack).
   ArtifactBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
@@ -133,7 +133,7 @@ Resources:
               Action:
               - s3:GetObject
               - s3:GetObjectVersion
-              - s3:PutObject            
+              - s3:PutObject
       
 # CodeBuild Project
   PackageCFTemplates:
@@ -286,19 +286,19 @@ Resources:
                   - Name: Source
                   - Name: Build
                 OutputArtifacts:
-                  - Name: CreateLFHelpersChangeSet
+                  - Name: CreateLambdaHelpersChangeSet
                 Configuration:
                   ActionMode: CHANGE_SET_REPLACE
                   Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
                   RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "LFHelpers"] ]
-                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "LFHelpers"] ]
-                  TemplatePath: !Sub "Build::LambdaFunctions.yaml"
+                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "lambdaHelpers"] ]
+                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "lambdaHelpers"] ]
+                  TemplatePath: !Sub "Build::lambdaHelpers.yaml"
                 RunOrder: 10
               - !Ref AWS::NoValue
             - !If
               - CreateDevResources
-              - Name: ExecuteLFHelpersChangeSet
+              - Name: ExecuteLambdaHelpersChangeSet
                 ActionTypeId:
                   Category: Deploy
                   Owner: AWS
@@ -306,9 +306,9 @@ Resources:
                   Version: 1
                 Configuration:
                   ActionMode: CHANGE_SET_EXECUTE
-                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "LFHelpers"] ]
+                  ChangeSetName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "lambdaHelpers"] ]
                   RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "LFHelpers"] ]
+                  StackName: !Join [ "-", [ !Ref ProjectID, !Ref EnvironmentType, "lambdaHelpers"] ]
                 RunOrder: 11
               - !Ref AWS::NoValue
 Outputs:

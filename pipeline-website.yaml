@@ -25,6 +25,11 @@ Parameters:
     Description: Enter the GitHub branch to monitored
     Type: String
     Default: master
+    
+  WebsiteBucket:
+    Description: Enter the name of the bucket where website needs to be copied to
+    Type: String
+    Default: proj01-dev-sapp 
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -89,14 +94,14 @@ Resources:
                 - s3:GetBucketVersioning
                 Resource: 
                   - !Join [ "", [ "arn:aws:s3:::", !Ref ArtifactBucket ] ]
-                  - !ImportValue WebsiteBucketARN
+                  - !Join [ "", [ "arn:aws:s3:::", !Ref WebsiteBucket ] ]
                 Effect: Allow
               - Action:
                 - s3:PutObject
                 - s3:GetObject
                 - S3:GetObjectVersion
                 Resource:
-                  - !Join [ "", [ !ImportValue WebsiteBucketARN, "/*" ] ]                
+                  - !Join [ "", [ "arn:aws:s3:::", !Ref WebsiteBucket, "/*"] ]               
                   - !Join [ "", [ "arn:aws:s3:::", !Ref ArtifactBucket, "/*" ] ]
                 Effect: Allow
               - Action:
@@ -161,5 +166,5 @@ Resources:
                 Version: 1
                 Provider: S3
               Configuration:
-                BucketName: !ImportValue WebsiteBucketName
+                BucketName: !Ref WebsiteBucket
                 Extract: true
