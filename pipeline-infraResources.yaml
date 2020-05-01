@@ -59,7 +59,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Delete
     Properties:
-      BucketName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'resources-artifacts'] ]
+      BucketName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'infraresources-artifacts'] ]
       
   CleanupArtifactBucketOnDelete:
     Type: Custom::cleanupbucket
@@ -72,7 +72,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'infraresources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -80,7 +80,7 @@ Resources:
           Principal:
             Service: codebuild.amazonaws.com
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodeBuild', 'infraresources', 'Policy' ] ]
           PolicyDocument:
             Statement:
             - Effect: Allow
@@ -104,7 +104,7 @@ Resources:
   PackageCFTemplates:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "PackageCFTemplates", "Resources"] ]
+      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "PackageCFTemplates", "infraresources"] ]
       Description: !Join [ " ", ["Build project for ", !ImportValue ProjectID ] ]
       ServiceRole: !Ref CodeBuildRole
       Source:
@@ -126,7 +126,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'infraresources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -134,7 +134,7 @@ Resources:
           Principal:
             Service: codepipeline.amazonaws.com
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CodePipeline', 'infraresources', 'Policy' ] ]
           PolicyDocument:
             Statement:
               - Action:
@@ -179,7 +179,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: /
-      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Role' ] ]
+      RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'infraresources', 'Role' ] ]
       AssumeRolePolicyDocument:
         Statement:
         - Action: sts:AssumeRole
@@ -188,19 +188,41 @@ Resources:
             Service: cloudformation.amazonaws.com
         Version: '2012-10-17'
       Policies:
-        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Policy' ] ]
+        - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'infraresources', 'Policy' ] ]
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
             - Effect: Allow
               Action: "*"
               Resource: "*"
+  # # TO BE DELETED            
+  # CodePipelineCloudFormationRole2:
+    # Type: AWS::IAM::Role
+    # Properties:
+      # Path: /
+      # RoleName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Role' ] ]
+      # AssumeRolePolicyDocument:
+        # Statement:
+        # - Action: sts:AssumeRole
+          # Effect: Allow
+          # Principal:
+            # Service: cloudformation.amazonaws.com
+        # Version: '2012-10-17'
+      # Policies:
+        # - PolicyName: !Join [ '-', [ !ImportValue ProjectID, !ImportValue EnvironmentType, !Sub '${AWS::Region}', 'CloudFormation', 'resources', 'Policy' ] ]
+          # PolicyDocument:
+            # Version: '2012-10-17'
+            # Statement:
+            # - Effect: Allow
+              # Action: "*"
+              # Resource: "*"
+              
 
 # CodePipeline          
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'projectresources' ] ]
+      Name: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, 'infraresources' ] ]
       RoleArn: !Sub ${CodePipelineRole.Arn}
       ArtifactStore:
         Type: S3
@@ -334,38 +356,38 @@ Resources:
                 RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
                 StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "cognito"] ]
               RunOrder: 11
-          # AWS Lambda
-            - Name: CreateLambdaChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              InputArtifacts:
-                - Name: Source
-                - Name: Build
-              OutputArtifacts:
-                - Name: CreateLambdaChangeSet
-              Configuration:
-                ActionMode: CHANGE_SET_REPLACE
-                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
-                TemplatePath: !Sub "Build::lambda.yaml"
-              RunOrder: 12
-            - Name: ExecuteLambdaChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              Configuration:
-                ActionMode: CHANGE_SET_EXECUTE
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
-              RunOrder: 13 
+          # # AWS Lambda
+            # - Name: CreateLambdaChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # InputArtifacts:
+                # - Name: Source
+                # - Name: Build
+              # OutputArtifacts:
+                # - Name: CreateLambdaChangeSet
+              # Configuration:
+                # ActionMode: CHANGE_SET_REPLACE
+                # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
+                # TemplatePath: !Sub "Build::lambda.yaml"
+              # RunOrder: 12
+            # - Name: ExecuteLambdaChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # Configuration:
+                # ActionMode: CHANGE_SET_EXECUTE
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "lambda"] ]
+              # RunOrder: 13 
           # restApi with Cognito Authorizier
             - Name: CreateRestApiChangeSet
               ActionTypeId:
@@ -398,67 +420,67 @@ Resources:
                 RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
                 StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApi"] ]
               RunOrder: 15
-          # restApi resources and methods
-            - Name: CreateRestApiResourcesChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              InputArtifacts:
-                - Name: Source
-                - Name: Build
-              OutputArtifacts:
-                - Name: CreateRestApiResourcesChangeSet
-              Configuration:
-                ActionMode: CHANGE_SET_REPLACE
-                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
-                TemplatePath: !Sub "Build::restApiResources.yaml"
-              RunOrder: 16
-            - Name: ExecuteRestApiResourcesChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              Configuration:
-                ActionMode: CHANGE_SET_EXECUTE
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
-              RunOrder: 17              
-          # Website integration
-            - Name: CreateWebIntegrationChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              InputArtifacts:
-                - Name: Source
-                - Name: Build
-              OutputArtifacts:
-                - Name: CreateWebIntegrationChangeSet
-              Configuration:
-                ActionMode: CHANGE_SET_REPLACE
-                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
-                TemplatePath: !Sub "Build::websiteIntegration.yaml"
-              RunOrder: 30
-            - Name: ExecuteWebIntegrationChangeSet
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              Configuration:
-                ActionMode: CHANGE_SET_EXECUTE
-                ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
-                RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
-                StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
-              RunOrder: 31              
+          # # restApi resources and methods
+            # - Name: CreateRestApiResourcesChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # InputArtifacts:
+                # - Name: Source
+                # - Name: Build
+              # OutputArtifacts:
+                # - Name: CreateRestApiResourcesChangeSet
+              # Configuration:
+                # ActionMode: CHANGE_SET_REPLACE
+                # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
+                # TemplatePath: !Sub "Build::restApiResources.yaml"
+              # RunOrder: 16
+            # - Name: ExecuteRestApiResourcesChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # Configuration:
+                # ActionMode: CHANGE_SET_EXECUTE
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "restApiResources"] ]
+              # RunOrder: 17              
+          # # Website integration
+            # - Name: CreateWebIntegrationChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # InputArtifacts:
+                # - Name: Source
+                # - Name: Build
+              # OutputArtifacts:
+                # - Name: CreateWebIntegrationChangeSet
+              # Configuration:
+                # ActionMode: CHANGE_SET_REPLACE
+                # Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # TemplatePath: !Sub "Build::websiteIntegration.yaml"
+              # RunOrder: 30
+            # - Name: ExecuteWebIntegrationChangeSet
+              # ActionTypeId:
+                # Category: Deploy
+                # Owner: AWS
+                # Provider: CloudFormation
+                # Version: 1
+              # Configuration:
+                # ActionMode: CHANGE_SET_EXECUTE
+                # ChangeSetName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+                # RoleArn: !GetAtt [CodePipelineCloudFormationRole, Arn]
+                # StackName: !Join [ "-", [ !ImportValue ProjectID, !ImportValue EnvironmentType, "webIntegration"] ]
+              # RunOrder: 31              
